@@ -9,7 +9,7 @@ from asl_utils import combine_sequences
 
 
 class ModelSelector(object):
-    '''
+    ''' 
     base class for model selection (strategy design pattern)
     '''
 
@@ -103,6 +103,41 @@ class SelectorCV(ModelSelector):
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
 
         # TODO implement model selection using CV
-        raise NotImplementedError
+        best_model = None
+        best_logL = -100000000000000
+
+        n_splits = min(3, len(self.sequences))
+        if n_splits < 2:
+            return None
+
+        split_method = KFold(n_splits=n_splits)
+
+
+        for n_comp in range(self.min_n_components, self.max_n_components+1):
+            count = 0
+            logL_count = 0
+            model = GaussianHMM(n_components=n_comp, n_iter=1000, random_state=self.random_state)
+
+            for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+                X_train, lengths_train = combine_sequences(cv_train_idx, self.sequences)
+                X_test, lengths_test = combine_sequences(cv_test_idx, self.sequences)
+
+                try:
+                    logL_count += model.fit(X_train, lengths_train).score(X_test, lengths_test)
+                    count += 1
+                except:
+                    continue
+
+            if count > 0:
+                mean_logL = logL_count/float(count)
+            else:
+                mean_logL = -100000000000000
+
+            if mean_logL > best_logL:
+                best_model, best_logL = model, mean_logL
+
+
+        return best_model
