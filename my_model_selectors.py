@@ -75,9 +75,31 @@ class SelectorBIC(ModelSelector):
         :return: GaussianHMM object
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
 
         # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        best_model = None
+        best_bic = 100000000000000
+
+        n = len(self.lengths)
+        logN = np.log(n)
+
+        for n_comp in range(self.min_n_components, self.max_n_components+1):
+            try:
+                model = GaussianHMM(n_components=n_comp, n_iter=1000, random_state=self.random_state).fit(self.X, self.lengths)
+                #  BIC =−2logL+plogN 
+                #  where L is the likelihood of the fitted model, p is the number of parameters, and N is the number of data points.
+                logL = model.score(self.X, self.lengths)
+                p = n**2 + 2 * n_comp * n - 1
+                curr_bic = -2 * logL + p * logN
+                if curr_bic < best_bic:
+                    best_bic, best_model = curr_bic, model
+            except:
+                continue
+
+
+        return best_model
+
 
 
 class SelectorDIC(ModelSelector):
@@ -91,9 +113,32 @@ class SelectorDIC(ModelSelector):
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        max_dist = -10000000000000000000
+        best_model = None
+
+        for n_comp in range(self.min_n_components, self.max_n_components+1):
+            model = None
+            logL = -100000000000000000
+            log_sum = 0
+            count = 0
+            try:
+                model = GaussianHMM(n_components=n_comp, n_iter=1000, random_state=self.random_state).fit(self.X, self.lengths  )
+                logL = model.score(self.X, self.lengths)
+            except:
+                continue
+
+            for w in self.hwords:
+                if w != self.this_word:
+                    log_sum += model.score(self.hwords[w][0], self.hwords[w][1])
+                    count += 1
+                    log_avg = log_sum/count*1.0
+
+            if logL - log_avg > max_dist:
+                best_model, max_dist = model, logL - log_avg
+
+        return best_model
 
 
 class SelectorCV(ModelSelector):
@@ -105,7 +150,6 @@ class SelectorCV(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-        # TODO implement model selection using CV
         best_model = None
         best_logL = -100000000000000
 
